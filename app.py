@@ -2,160 +2,134 @@ import streamlit as st
 from streamlit_cropper import st_cropper
 from PIL import Image, ImageDraw, ImageFont
 import io
+import os
 
 # ==============================================================================
-# ⚙️ ÁREA DE CONFIGURAÇÃO (AJUSTE AQUI OS DADOS DO SEU TEMPLATE)
-# ==============================================================================
-
-# ==============================================================================
-# ⚙️ ÁREA DE CONFIGURAÇÃO
+# ⚙️ ÁREA DE CONFIGURAÇÃO (AJUSTADA PARA 720p E FONTE ABRAMO)
 # ==============================================================================
 
 # 1. ARQUIVOS
+# ATENÇÃO: O nome do arquivo da fonte aqui deve ser IGUAL ao que está no GitHub
 ARQUIVO_TEMPLATE = "template.png"       
-ARQUIVO_FONTE = "fonte_assinatura.ttf"  # Certifique-se que o nome é IGUAL ao do repositório
+ARQUIVO_FONTE = "fonte_assinatura_otf"  # <--- Verifique se o arquivo chama Abramo.ttf ou Abramo.otf
 
-# 2. POSIÇÃO DA FOTO (Ajuste estes valores medindo o buraco da foto no template)
-# Estes valores abaixo são exemplos. Você precisa medir o quadrado da foto!
-FOTO_POS_X = 50       
-FOTO_POS_Y = 120      
-FOTO_LARGURA = 400    
-FOTO_ALTURA = 500     
+# 2. POSIÇÃO DA FOTO (CONFIGURADO PARA PREENCHER A LATERAL ESQUERDA)
+# Baseado na resolução 1280x720
+FOTO_POS_X = 0        # Começa no canto esquerdo absoluto
+FOTO_POS_Y = 0        # Começa no topo absoluto
+FOTO_LARGURA = 640    # Largura (metade da tela para garantir que cobre o fade)
+FOTO_ALTURA = 720     # Altura total do template (720p)
 
-# 3. POSIÇÃO DO NOME (ATUALIZADO COM SEUS DADOS) ✅
-NOME_POS_X = 870      # Posição Horizontal (Centro)
-NOME_POS_Y = 645      # Posição Vertical (Altura)
-TAMANHO_FONTE = 80    # Ajuste o tamanho da letra se ficar muito grande/pequeno
-COR_TEXTO = "white"   # Se o fundo for escuro, mantenha white
+# 3. POSIÇÃO DO NOME (Baseado no seu pedido anterior)
+NOME_POS_X = 870      
+NOME_POS_Y = 645      
+TAMANHO_FONTE = 90    # Aumentei um pouco para a fonte Abramo ficar legível
+COR_TEXTO = "white"   
+
 # ==============================================================================
-# 🛠️ LÓGICA DO SISTEMA (NÃO PRECISA MEXER ABAIXO)
+# 🛠️ LÓGICA DO SISTEMA
 # ==============================================================================
 
 def carregar_recursos():
-    """Carrega o template e a fonte com segurança."""
-    # Tenta carregar Template
+    # Carregar Template
     try:
         template = Image.open(ARQUIVO_TEMPLATE).convert("RGBA")
     except FileNotFoundError:
-        st.error(f"❌ ERRO: O arquivo '{ARQUIVO_TEMPLATE}' não foi encontrado.")
+        st.error(f"❌ ERRO: Não encontrei o arquivo '{ARQUIVO_TEMPLATE}'.")
         return None, None
 
-    # Tenta carregar Fonte
+    # Carregar Fonte (Lógica mais robusta)
+    font = None
     try:
         font = ImageFont.truetype(ARQUIVO_FONTE, TAMANHO_FONTE)
-    except:
-        font = ImageFont.load_default() # Usa padrão se não achar a personalizada
+    except OSError:
+        # Tenta procurar com .otf se .ttf falhar, ou vice-versa
+        try:
+            alternativa = ARQUIVO_FONTE.replace(".ttf", ".otf")
+            font = ImageFont.truetype(alternativa, TAMANHO_FONTE)
+        except:
+            st.warning(f"⚠️ A fonte '{ARQUIVO_FONTE}' não foi carregada. Usando padrão.")
+            font = ImageFont.load_default()
     
     return template, font
 
 def processar_arte_final(foto_cortada, nome_usuario, template, fonte):
-    """Monta o sanduíche: Foto + Template + Nome."""
-    
-    # 1. Ajustar tamanho da foto para caber no buraco
-    # Usa LANCZOS para garantir alta qualidade na redução/ampliação
+    # 1. Redimensionar foto para a lateral completa (usando LANCZOS para qualidade)
     foto_final = foto_cortada.resize((FOTO_LARGURA, FOTO_ALTURA), Image.LANCZOS)
     foto_final = foto_final.convert("RGBA")
     
-    # 2. Criar a base (Canvas)
+    # 2. Criar Canvas
     canvas = Image.new("RGBA", template.size)
     
-    # 3. Colar a Foto (Camada de Baixo)
+    # 3. Colar Foto (Fundo)
     canvas.paste(foto_final, (FOTO_POS_X, FOTO_POS_Y))
     
-    # 4. Colar o Template (Camada de Cima - com transparência)
+    # 4. Colar Template (Frente)
+    # Importante: A parte branca do seu PNG deve ser TRANSPARENTE para a foto aparecer
     canvas.paste(template, (0, 0), mask=template)
     
-    # 5. Escrever o Nome
+    # 5. Escrever Nome
     draw = ImageDraw.Draw(canvas)
-    
-    # anchor="mm" centraliza o texto exatamente nas coordenadas X,Y informadas
     draw.text((NOME_POS_X, NOME_POS_Y), nome_usuario, font=fonte, fill=COR_TEXTO, anchor="mm")
     
     return canvas
 
 # ==============================================================================
-# 📱 INTERFACE DO USUÁRIO (STREAMLIT)
+# 📱 INTERFACE
 # ==============================================================================
 
 st.set_page_config(page_title="Gerador de Convite", page_icon="⚓", layout="wide")
 
-st.title("⚓ Gerador de Convite - Visualização Real-Time")
-st.markdown("Preencha seus dados à esquerda e veja o resultado instantâneo à direita.")
+st.title("⚓ Gerador de Convite")
 st.markdown("---")
 
-# Layout de duas colunas: Controles (Esq) e Prévia (Dir)
 col_esq, col_dir = st.columns([1, 1.5])
 
 with col_esq:
     st.subheader("1. Seus Dados")
-    nome_input = st.text_input("Nome Completo / Guerra", placeholder="Ex: MN Silva")
-    arquivo_foto = st.file_uploader("Sua Foto (Farda)", type=['jpg', 'png', 'jpeg'])
+    nome_input = st.text_input("Nome Completo", placeholder="Ex: Cb Fulano")
+    arquivo_foto = st.file_uploader("Sua Foto", type=['jpg', 'png', 'jpeg'])
     
     imagem_cortada_obj = None
     
     if arquivo_foto:
-        st.info("📐 Ajuste a caixa azul para enquadrar seu rosto:")
+        st.info("Ajuste o corte (A foto ocupará toda a lateral esquerda):")
         img_original = Image.open(arquivo_foto)
         
-        # Ferramenta de Corte Interativa
+        # Ferramenta de corte travada na proporção da lateral esquerda
         imagem_cortada_obj = st_cropper(
             img_original,
-            realtime_update=True,     # Atualiza enquanto arrasta
-            box_color='#0000FF',      # Cor da borda (Azul)
-            aspect_ratio=(FOTO_LARGURA, FOTO_ALTURA), # Trava a proporção
-            should_resize_image=True  # Otimiza performance
+            realtime_update=True,
+            box_color='#0000FF',
+            aspect_ratio=(FOTO_LARGURA, FOTO_ALTURA),
+            should_resize_image=True
         )
 
 with col_dir:
-    st.subheader("2. Resultado Final")
-    placeholder = st.empty() # Espaço reservado para a imagem
+    st.subheader("2. Resultado")
+    placeholder = st.empty()
     
-    # Lógica de atualização em Tempo Real
     if arquivo_foto and nome_input and imagem_cortada_obj:
-        
-        # Carrega recursos e gera imagem
         tmpl, fnt = carregar_recursos()
+        
         if tmpl:
-            img_pronta_rgba = processar_arte_final(imagem_cortada_obj, nome_input, tmpl, fnt)
+            img_pronta = processar_arte_final(imagem_cortada_obj, nome_input, tmpl, fnt)
+            img_rgb = img_pronta.convert("RGB")
             
-            # Converte para RGB (padrão de visualização e PDF)
-            img_pronta_rgb = img_pronta_rgba.convert("RGB")
+            placeholder.image(img_rgb, caption=f"Convite de {nome_input}", use_container_width=True)
             
-            # Mostra na tela
-            placeholder.image(img_pronta_rgb, caption=f"Convite de {nome_input}", use_container_width=True)
+            col_b1, col_b2 = st.columns(2)
             
-            st.success("✅ Arte pronta! Escolha o formato abaixo:")
-            
-            # --- BOTÕES DE DOWNLOAD ---
-            b1, b2 = st.columns(2)
-            
-            # Preparar PDF
+            # PDF Buffer
             pdf_buffer = io.BytesIO()
-            img_pronta_rgb.save(pdf_buffer, format="PDF", resolution=300.0)
+            img_rgb.save(pdf_buffer, format="PDF", resolution=300.0)
             
-            # Preparar PNG (Imagem)
+            # PNG Buffer
             png_buffer = io.BytesIO()
-            img_pronta_rgb.save(png_buffer, format="PNG")
+            img_rgb.save(png_buffer, format="PNG")
             
-            with b1:
-                st.download_button(
-                    label="📄 Baixar PDF (Impressão)",
-                    data=pdf_buffer.getvalue(),
-                    file_name=f"Convite_{nome_input}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-            
-            with b2:
-                st.download_button(
-                    label="📲 Baixar Imagem (WhatsApp)",
-                    data=png_buffer.getvalue(),
-                    file_name=f"Convite_{nome_input}.png",
-                    mime="image/png",
-                    use_container_width=True
-                )
-    
+            col_b1.download_button("📄 Baixar PDF", pdf_buffer.getvalue(), f"Convite_{nome_input}.pdf", "application/pdf", use_container_width=True)
+            col_b2.download_button("📲 Baixar Imagem", png_buffer.getvalue(), f"Convite_{nome_input}.png", "image/png", use_container_width=True)
+
     elif not arquivo_foto:
-        placeholder.info("👈 Comece enviando sua foto na coluna da esquerda.")
-    elif not nome_input:
-        placeholder.warning("👈 Digite seu nome para ver a prévia.")
+        placeholder.info("👈 Envie sua foto primeiro.")
