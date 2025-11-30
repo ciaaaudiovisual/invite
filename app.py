@@ -11,7 +11,7 @@ import os
 # 1. ARQUIVOS
 # ATENÇÃO: O nome do arquivo da fonte aqui deve ser IGUAL ao que está no GitHub
 ARQUIVO_TEMPLATE = "template.png"       
-ARQUIVO_FONTE = "fonte_assinatura_otf"  # <--- Verifique se o arquivo chama Abramo.ttf ou Abramo.otf
+ARQUIVO_FONTE = "fonte_assinatura.otf"  # <--- Verifique se o arquivo chama Abramo.ttf ou Abramo.otf
 
 # 2. POSIÇÃO DA FOTO (CONFIGURADO PARA PREENCHER A LATERAL ESQUERDA)
 # Baseado na resolução 1280x720
