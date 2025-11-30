@@ -7,23 +7,26 @@ import io
 # ⚙️ ÁREA DE CONFIGURAÇÃO (AJUSTE AQUI OS DADOS DO SEU TEMPLATE)
 # ==============================================================================
 
-# 1. ARQUIVOS (Devem estar na mesma pasta ou raiz do GitHub)
-ARQUIVO_TEMPLATE = "template.png"       # O PNG com fundo transparente
-ARQUIVO_FONTE = "fonte_assinatura.ttf"  # A fonte cursiva (opcional)
+# ==============================================================================
+# ⚙️ ÁREA DE CONFIGURAÇÃO
+# ==============================================================================
 
-# 2. POSIÇÃO DA FOTO (Onde fica o buraco transparente?)
-# Meça isso no Paint/Photoshop (pixels a partir do canto superior esquerdo)
-FOTO_POS_X = 50       # Distância da esquerda até o início da foto
-FOTO_POS_Y = 120      # Distância do topo até o início da foto
-FOTO_LARGURA = 400    # Largura exata do buraco
-FOTO_ALTURA = 500     # Altura exata do buraco
+# 1. ARQUIVOS
+ARQUIVO_TEMPLATE = "template.png"       
+ARQUIVO_FONTE = "fonte_assinatura.ttf"  # Certifique-se que o nome é IGUAL ao do repositório
 
-# 3. POSIÇÃO DO NOME (Onde o texto será escrito?)
-NOME_POS_X = 1200     # Posição horizontal (Centro do texto)
-NOME_POS_Y = 900      # Posição vertical (Altura da linha)
-TAMANHO_FONTE = 80    # Tamanho da letra
-COR_TEXTO = "white"   # Cor do nome (pode ser hex: "#FF0000" ou nome: "black")
+# 2. POSIÇÃO DA FOTO (Ajuste estes valores medindo o buraco da foto no template)
+# Estes valores abaixo são exemplos. Você precisa medir o quadrado da foto!
+FOTO_POS_X = 50       
+FOTO_POS_Y = 120      
+FOTO_LARGURA = 400    
+FOTO_ALTURA = 500     
 
+# 3. POSIÇÃO DO NOME (ATUALIZADO COM SEUS DADOS) ✅
+NOME_POS_X = 870      # Posição Horizontal (Centro)
+NOME_POS_Y = 645      # Posição Vertical (Altura)
+TAMANHO_FONTE = 80    # Ajuste o tamanho da letra se ficar muito grande/pequeno
+COR_TEXTO = "white"   # Se o fundo for escuro, mantenha white
 # ==============================================================================
 # 🛠️ LÓGICA DO SISTEMA (NÃO PRECISA MEXER ABAIXO)
 # ==============================================================================
