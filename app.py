@@ -3,162 +3,156 @@ from streamlit_cropper import st_cropper
 from PIL import Image, ImageDraw, ImageFont
 import io
 
-# ==========================================
-# ⚙️ CONFIGURAÇÕES (AJUSTE AQUI)
-# ==========================================
+# ==============================================================================
+# ⚙️ ÁREA DE CONFIGURAÇÃO (AJUSTE AQUI OS DADOS DO SEU TEMPLATE)
+# ==============================================================================
 
-# Nomes dos arquivos que você vai subir no GitHub
-ARQUIVO_TEMPLATE = "template.png"       # Deve ter o fundo transparente (PNG)
-ARQUIVO_FONTE = "fonte_assinatura.ttf"  # Opcional. Se não tiver, o sistema usa uma padrão.
+# 1. ARQUIVOS (Devem estar na mesma pasta ou raiz do GitHub)
+ARQUIVO_TEMPLATE = "template.png"       # O PNG com fundo transparente
+ARQUIVO_FONTE = "fonte_assinatura.ttf"  # A fonte cursiva (opcional)
 
-# Configuração da ÁREA DA FOTO (Em pixels, baseado no seu template)
-# Você deve medir isso no Photoshop/Paint para ficar perfeito
-POSICAO_X = 50          # Distância da esquerda até o começo da foto
-POSICAO_Y = 120         # Distância do topo até o começo da foto
-LARGURA_FOTO = 400      # Largura do buraco
-ALTURA_FOTO = 500       # Altura do buraco
-ASPECT_RATIO = (LARGURA_FOTO, ALTURA_FOTO) # Trava a proporção do corte
+# 2. POSIÇÃO DA FOTO (Onde fica o buraco transparente?)
+# Meça isso no Paint/Photoshop (pixels a partir do canto superior esquerdo)
+FOTO_POS_X = 50       # Distância da esquerda até o início da foto
+FOTO_POS_Y = 120      # Distância do topo até o início da foto
+FOTO_LARGURA = 400    # Largura exata do buraco
+FOTO_ALTURA = 500     # Altura exata do buraco
 
-# Posição do Texto (Nome)
-POSICAO_NOME_X = 1200   # Centro horizontal de onde o nome fica
-POSICAO_NOME_Y = 900    # Altura vertical do nome
-TAMANHO_FONTE = 80      # Tamanho da letra
+# 3. POSIÇÃO DO NOME (Onde o texto será escrito?)
+NOME_POS_X = 1200     # Posição horizontal (Centro do texto)
+NOME_POS_Y = 900      # Posição vertical (Altura da linha)
+TAMANHO_FONTE = 80    # Tamanho da letra
+COR_TEXTO = "white"   # Cor do nome (pode ser hex: "#FF0000" ou nome: "black")
 
-# ==========================================
-# 🛠️ FUNÇÕES DE PROCESSAMENTO
-# ==========================================
+# ==============================================================================
+# 🛠️ LÓGICA DO SISTEMA (NÃO PRECISA MEXER ABAIXO)
+# ==============================================================================
 
-def carregar_template():
-    """Tenta carregar a imagem de fundo. Retorna None se falhar."""
+def carregar_recursos():
+    """Carrega o template e a fonte com segurança."""
+    # Tenta carregar Template
     try:
-        return Image.open(ARQUIVO_TEMPLATE).convert("RGBA")
+        template = Image.open(ARQUIVO_TEMPLATE).convert("RGBA")
     except FileNotFoundError:
-        return None
+        st.error(f"❌ ERRO: O arquivo '{ARQUIVO_TEMPLATE}' não foi encontrado.")
+        return None, None
 
-def criar_convite(foto_usuario, nome_militar):
-    """Monta a arte final: Foto + Template + Nome"""
-    
-    # 1. Carregar Template
-    template = carregar_template()
-    if not template:
-        st.error(f"Erro Crítico: O arquivo '{ARQUIVO_TEMPLATE}' não foi encontrado no repositório.")
-        return None
-
-    # 2. Redimensionar a foto cortada para o tamanho exato do buraco
-    foto_redimensionada = foto_usuario.resize((LARGURA_FOTO, ALTURA_FOTO))
-    foto_redimensionada = foto_redimensionada.convert("RGBA")
-
-    # 3. Criar o Canvas (Tela base transparente)
-    convite_final = Image.new("RGBA", template.size)
-
-    # 4. A Mágica do "Sanduíche":
-    # Primeiro colamos a foto do militar (no fundo)
-    convite_final.paste(foto_redimensionada, (POSICAO_X, POSICAO_Y))
-    
-    # Depois colamos o template por cima (ele tem o buraco transparente)
-    convite_final.paste(template, (0, 0), mask=template)
-
-    # 5. Escrever o Nome
-    draw = ImageDraw.Draw(convite_final)
-    
-    # Tenta carregar a fonte personalizada, senão usa a padrão do sistema
+    # Tenta carregar Fonte
     try:
         font = ImageFont.truetype(ARQUIVO_FONTE, TAMANHO_FONTE)
     except:
-        font = ImageFont.load_default()
-        st.warning("Aviso: Fonte personalizada não encontrada. Usando fonte padrão.")
+        font = ImageFont.load_default() # Usa padrão se não achar a personalizada
+    
+    return template, font
 
-    # Escreve o texto centralizado na âncora "mm" (middle-middle)
-    draw.text((POSICAO_NOME_X, POSICAO_NOME_Y), nome_militar, font=font, fill="white", anchor="mm")
+def processar_arte_final(foto_cortada, nome_usuario, template, fonte):
+    """Monta o sanduíche: Foto + Template + Nome."""
+    
+    # 1. Ajustar tamanho da foto para caber no buraco
+    # Usa LANCZOS para garantir alta qualidade na redução/ampliação
+    foto_final = foto_cortada.resize((FOTO_LARGURA, FOTO_ALTURA), Image.LANCZOS)
+    foto_final = foto_final.convert("RGBA")
+    
+    # 2. Criar a base (Canvas)
+    canvas = Image.new("RGBA", template.size)
+    
+    # 3. Colar a Foto (Camada de Baixo)
+    canvas.paste(foto_final, (FOTO_POS_X, FOTO_POS_Y))
+    
+    # 4. Colar o Template (Camada de Cima - com transparência)
+    canvas.paste(template, (0, 0), mask=template)
+    
+    # 5. Escrever o Nome
+    draw = ImageDraw.Draw(canvas)
+    
+    # anchor="mm" centraliza o texto exatamente nas coordenadas X,Y informadas
+    draw.text((NOME_POS_X, NOME_POS_Y), nome_usuario, font=fonte, fill=COR_TEXTO, anchor="mm")
+    
+    return canvas
 
-    return convite_final
-
-# ==========================================
+# ==============================================================================
 # 📱 INTERFACE DO USUÁRIO (STREAMLIT)
-# ==========================================
+# ==============================================================================
 
-st.set_page_config(page_title="Gerador de Convite Naval", page_icon="⚓", layout="centered")
+st.set_page_config(page_title="Gerador de Convite", page_icon="⚓", layout="wide")
 
-st.title("⚓ Convite de Formatura")
-st.markdown("Crie seu convite personalizado oficial para a solenidade.")
+st.title("⚓ Gerador de Convite - Visualização Real-Time")
+st.markdown("Preencha seus dados à esquerda e veja o resultado instantâneo à direita.")
 st.markdown("---")
 
-# Container de Entrada de Dados
-col_input, col_crop = st.columns([1, 1.5])
+# Layout de duas colunas: Controles (Esq) e Prévia (Dir)
+col_esq, col_dir = st.columns([1, 1.5])
 
-with col_input:
+with col_esq:
     st.subheader("1. Seus Dados")
-    nome_input = st.text_input("Nome de Guerra / Completo", placeholder="Ex: MN Silva")
-    arquivo_upload = st.file_uploader("Envie sua foto (Farda)", type=['jpg', 'png', 'jpeg'])
-
-imagem_cortada = None
-
-# Só mostra a ferramenta de corte se tiver foto carregada
-if arquivo_upload:
-    with col_crop:
-        st.subheader("2. Ajuste a Foto")
-        st.info("Arraste os cantos da caixa azul para enquadrar seu rosto.")
+    nome_input = st.text_input("Nome Completo / Guerra", placeholder="Ex: MN Silva")
+    arquivo_foto = st.file_uploader("Sua Foto (Farda)", type=['jpg', 'png', 'jpeg'])
+    
+    imagem_cortada_obj = None
+    
+    if arquivo_foto:
+        st.info("📐 Ajuste a caixa azul para enquadrar seu rosto:")
+        img_original = Image.open(arquivo_foto)
         
-        img_original = Image.open(arquivo_upload)
-        
-        # Componente de Corte (St_Cropper)
-        imagem_cortada = st_cropper(
+        # Ferramenta de Corte Interativa
+        imagem_cortada_obj = st_cropper(
             img_original,
-            realtime_update=True,
-            box_color='#0000FF', # Cor da linha azul
-            aspect_ratio=ASPECT_RATIO, # Trava a proporção
-            should_resize_image=True # Melhora performance em fotos pesadas
+            realtime_update=True,     # Atualiza enquanto arrasta
+            box_color='#0000FF',      # Cor da borda (Azul)
+            aspect_ratio=(FOTO_LARGURA, FOTO_ALTURA), # Trava a proporção
+            should_resize_image=True  # Otimiza performance
         )
 
-st.markdown("---")
-
-# Botão de Gerar (Só ativa se tiver nome e foto)
-if nome_input and imagem_cortada:
-    if st.button("✨ Gerar Meu Convite", type="primary", use_container_width=True):
+with col_dir:
+    st.subheader("2. Resultado Final")
+    placeholder = st.empty() # Espaço reservado para a imagem
+    
+    # Lógica de atualização em Tempo Real
+    if arquivo_foto and nome_input and imagem_cortada_obj:
         
-        with st.spinner("Processando arte em alta resolução..."):
+        # Carrega recursos e gera imagem
+        tmpl, fnt = carregar_recursos()
+        if tmpl:
+            img_pronta_rgba = processar_arte_final(imagem_cortada_obj, nome_input, tmpl, fnt)
             
-            # Chama a função de montagem
-            resultado_rgba = criar_convite(imagem_cortada, nome_input)
+            # Converte para RGB (padrão de visualização e PDF)
+            img_pronta_rgb = img_pronta_rgba.convert("RGB")
             
-            if resultado_rgba:
-                # Converter para RGB (necessário para salvar PDF e JPG corretamente)
-                resultado_rgb = resultado_rgba.convert("RGB")
-                
-                # --- EXIBIÇÃO ---
-                st.subheader("3. Resultado Final")
-                st.image(resultado_rgb, caption=f"Convite de {nome_input}", use_container_width=True)
-                
-                # --- ÁREA DE DOWNLOAD ---
-                st.success("Convite gerado! Escolha o formato abaixo:")
-                
-                col_d1, col_d2 = st.columns(2)
-                
-                # Preparar Buffer PDF
-                buffer_pdf = io.BytesIO()
-                resultado_rgb.save(buffer_pdf, format="PDF", resolution=300.0)
-                
-                # Preparar Buffer PNG (Imagem)
-                buffer_png = io.BytesIO()
-                resultado_rgb.save(buffer_png, format="PNG")
-                
-                with col_d1:
-                    st.download_button(
-                        label="📄 Baixar em PDF\n(Para Imprimir)",
-                        data=buffer_pdf.getvalue(),
-                        file_name=f"Convite_{nome_input}.pdf",
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
-                
-                with col_d2:
-                    st.download_button(
-                        label="📲 Baixar Imagem\n(Para WhatsApp)",
-                        data=buffer_png.getvalue(),
-                        file_name=f"Convite_{nome_input}.png",
-                        mime="image/png",
-                        use_container_width=True
-                    )
-
-elif arquivo_upload and not nome_input:
-    st.warning("⚠️ Por favor, digite seu nome acima.")
+            # Mostra na tela
+            placeholder.image(img_pronta_rgb, caption=f"Convite de {nome_input}", use_container_width=True)
+            
+            st.success("✅ Arte pronta! Escolha o formato abaixo:")
+            
+            # --- BOTÕES DE DOWNLOAD ---
+            b1, b2 = st.columns(2)
+            
+            # Preparar PDF
+            pdf_buffer = io.BytesIO()
+            img_pronta_rgb.save(pdf_buffer, format="PDF", resolution=300.0)
+            
+            # Preparar PNG (Imagem)
+            png_buffer = io.BytesIO()
+            img_pronta_rgb.save(png_buffer, format="PNG")
+            
+            with b1:
+                st.download_button(
+                    label="📄 Baixar PDF (Impressão)",
+                    data=pdf_buffer.getvalue(),
+                    file_name=f"Convite_{nome_input}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            
+            with b2:
+                st.download_button(
+                    label="📲 Baixar Imagem (WhatsApp)",
+                    data=png_buffer.getvalue(),
+                    file_name=f"Convite_{nome_input}.png",
+                    mime="image/png",
+                    use_container_width=True
+                )
+    
+    elif not arquivo_foto:
+        placeholder.info("👈 Comece enviando sua foto na coluna da esquerda.")
+    elif not nome_input:
+        placeholder.warning("👈 Digite seu nome para ver a prévia.")
