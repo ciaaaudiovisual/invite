@@ -2,74 +2,65 @@ import streamlit as st
 from streamlit_cropper import st_cropper
 from PIL import Image, ImageDraw, ImageFont
 import io
-import os
 
 # ==============================================================================
-# ⚙️ ÁREA DE CONFIGURAÇÃO (AJUSTADA PARA 720p E FONTE ABRAMO)
+# ⚙️ CONFIGURAÇÕES (AJUSTE FINO)
 # ==============================================================================
 
-# 1. ARQUIVOS
-# ATENÇÃO: O nome do arquivo da fonte aqui deve ser IGUAL ao que está no GitHub
 ARQUIVO_TEMPLATE = "template.png"       
-ARQUIVO_FONTE = "fonte_assinatura.otf"  # <--- Verifique se o arquivo chama Abramo.ttf ou Abramo.otf
+ARQUIVO_FONTE = "fonte_assinatura.otf"  # Certifique-se que o nome é exato
 
-# 2. POSIÇÃO DA FOTO (CONFIGURADO PARA PREENCHER A LATERAL ESQUERDA)
-# Baseado na resolução 1280x720
-FOTO_POS_X = 0        # Começa no canto esquerdo absoluto
-FOTO_POS_Y = 0        # Começa no topo absoluto
-FOTO_LARGURA = 640    # Largura (metade da tela para garantir que cobre o fade)
-FOTO_ALTURA = 720     # Altura total do template (720p)
+# --- CONFIGURAÇÃO DA FOTO ---
+# Para não distorcer, a área de corte TERÁ a mesma proporção que estes valores.
+FOTO_POS_X = 0        # Encostado na esquerda
+FOTO_POS_Y = 0        # Encostado no topo
+FOTO_LARGURA = 600    # Largura da área da foto (ajustei para não invadir o texto)
+FOTO_ALTURA = 720     # Altura total (720p)
 
-# 3. POSIÇÃO DO NOME (Baseado no seu pedido anterior)
-NOME_POS_X = 870      
-NOME_POS_Y = 645      
-TAMANHO_FONTE = 90    # Aumentei um pouco para a fonte Abramo ficar legível
-COR_TEXTO = "white"   
+# --- CONFIGURAÇÃO DO NOME ---
+NOME_POS_X = 870      # Centro horizontal da área do texto
+NOME_POS_Y = 645      # Altura da linha do texto
+TAMANHO_FONTE = 50    # REDUZIDO (Era 90)
+COR_TEXTO = "white"
 
 # ==============================================================================
-# 🛠️ LÓGICA DO SISTEMA
+# 🛠️ LÓGICA
 # ==============================================================================
 
 def carregar_recursos():
-    # Carregar Template
     try:
         template = Image.open(ARQUIVO_TEMPLATE).convert("RGBA")
     except FileNotFoundError:
-        st.error(f"❌ ERRO: Não encontrei o arquivo '{ARQUIVO_TEMPLATE}'.")
+        st.error(f"❌ ERRO: Arquivo '{ARQUIVO_TEMPLATE}' não encontrado.")
         return None, None
 
-    # Carregar Fonte (Lógica mais robusta)
-    font = None
     try:
         font = ImageFont.truetype(ARQUIVO_FONTE, TAMANHO_FONTE)
-    except OSError:
-        # Tenta procurar com .otf se .ttf falhar, ou vice-versa
-        try:
-            alternativa = ARQUIVO_FONTE.replace(".ttf", ".otf")
-            font = ImageFont.truetype(alternativa, TAMANHO_FONTE)
-        except:
-            st.warning(f"⚠️ A fonte '{ARQUIVO_FONTE}' não foi carregada. Usando padrão.")
-            font = ImageFont.load_default()
+    except:
+        font = ImageFont.load_default()
+        st.warning("⚠️ Fonte personalizada não encontrada. Usando padrão.")
     
     return template, font
 
-def processar_arte_final(foto_cortada, nome_usuario, template, fonte):
-    # 1. Redimensionar foto para a lateral completa (usando LANCZOS para qualidade)
+def processar_arte(foto_cortada, nome_usuario, template, fonte):
+    # 1. Redimensionar
+    # Como travamos o aspect_ratio no corte, este resize NÃO vai distorcer a imagem
     foto_final = foto_cortada.resize((FOTO_LARGURA, FOTO_ALTURA), Image.LANCZOS)
     foto_final = foto_final.convert("RGBA")
     
     # 2. Criar Canvas
     canvas = Image.new("RGBA", template.size)
     
-    # 3. Colar Foto (Fundo)
+    # 3. Colar Foto (Na esquerda)
     canvas.paste(foto_final, (FOTO_POS_X, FOTO_POS_Y))
     
-    # 4. Colar Template (Frente)
-    # Importante: A parte branca do seu PNG deve ser TRANSPARENTE para a foto aparecer
+    # 4. Colar Template (Por cima)
     canvas.paste(template, (0, 0), mask=template)
     
-    # 5. Escrever Nome
+    # 5. Escrever Nome (Respeitando maiúsculas/minúsculas do input)
     draw = ImageDraw.Draw(canvas)
+    
+    # anchor="mm" centraliza no ponto X,Y
     draw.text((NOME_POS_X, NOME_POS_Y), nome_usuario, font=fonte, fill=COR_TEXTO, anchor="mm")
     
     return canvas
@@ -86,22 +77,24 @@ st.markdown("---")
 col_esq, col_dir = st.columns([1, 1.5])
 
 with col_esq:
-    st.subheader("1. Seus Dados")
-    nome_input = st.text_input("Nome Completo", placeholder="Ex: Cb Fulano")
+    st.subheader("1. Dados")
+    # O valor padrão está em Title Case (Maiúsculas só no início) para testar a fonte
+    nome_input = st.text_input("Nome Completo", placeholder="Ex: Jhonatas Albuquerque")
+    
     arquivo_foto = st.file_uploader("Sua Foto", type=['jpg', 'png', 'jpeg'])
     
     imagem_cortada_obj = None
     
     if arquivo_foto:
-        st.info("Ajuste o corte (A foto ocupará toda a lateral esquerda):")
+        st.info("Ajuste o retângulo azul. A proporção é fixa para não distorcer.")
         img_original = Image.open(arquivo_foto)
         
-        # Ferramenta de corte travada na proporção da lateral esquerda
+        # --- O SEGREDO PARA NÃO DISTORCER ESTÁ AQUI ---
         imagem_cortada_obj = st_cropper(
             img_original,
             realtime_update=True,
             box_color='#0000FF',
-            aspect_ratio=(FOTO_LARGURA, FOTO_ALTURA),
+            aspect_ratio=(FOTO_LARGURA, FOTO_ALTURA), # Trava o formato da caixa
             should_resize_image=True
         )
 
@@ -113,18 +106,18 @@ with col_dir:
         tmpl, fnt = carregar_recursos()
         
         if tmpl:
-            img_pronta = processar_arte_final(imagem_cortada_obj, nome_input, tmpl, fnt)
+            # Passamos o nome_input direto (sem .upper())
+            img_pronta = processar_arte(imagem_cortada_obj, nome_input, tmpl, fnt)
             img_rgb = img_pronta.convert("RGB")
             
             placeholder.image(img_rgb, caption=f"Convite de {nome_input}", use_container_width=True)
             
             col_b1, col_b2 = st.columns(2)
             
-            # PDF Buffer
+            # Buffers
             pdf_buffer = io.BytesIO()
             img_rgb.save(pdf_buffer, format="PDF", resolution=300.0)
             
-            # PNG Buffer
             png_buffer = io.BytesIO()
             img_rgb.save(png_buffer, format="PNG")
             
@@ -132,4 +125,4 @@ with col_dir:
             col_b2.download_button("📲 Baixar Imagem", png_buffer.getvalue(), f"Convite_{nome_input}.png", "image/png", use_container_width=True)
 
     elif not arquivo_foto:
-        placeholder.info("👈 Envie sua foto primeiro.")
+        placeholder.info("👈 Envie sua foto.")
